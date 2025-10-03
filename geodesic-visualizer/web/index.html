@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0e27">
+    <title>Geodesic Flow Visualizer | Real-Time Differential Geometry</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary: #6ea8fe;
+            --primary-dark: #4a5fd9;
+            --bg-dark: #0a0e27;
+            --bg-medium: #141929;
+            --bg-light: #1e2337;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0afc0;
+            --border: #2a3555;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1d3a 100%);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+        }
+        
+        #app {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #canvasContainer {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #glCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+            touch-action: none;
+        }
+        
+        #glCanvas:active {
+            cursor: grabbing;
+        }
+        
+        #controlPanel {
+            width: 340px;
+            background: rgba(20, 25, 45, 0.98);
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-left: 1px solid var(--border);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+        }
+        
+        #controlPanel::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #controlPanel::-webkit-scrollbar-track {
+            background: rgba(30, 35, 55, 0.5);
+        }
+        
+        #controlPanel::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        
+        .panel-header {
+            padding: 24px 20px;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+        }
+        
+        .panel-header .subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .panel-content {
+            padding: 20px;
+        }
+        
+        .section {
+            margin-bottom: 24px;
+            padding: 18px;
+            background: rgba(30, 35, 55, 0.6);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            animation: slideUp 0.4s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .section h2 {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+        
+        .control-group {
+            margin-bottom: 16px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .value-display {
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 12px;
+            padding: 2px 8px;
+            background: rgba(110, 168, 254, 0.15);
+            border-radius: 4px;
+        }
+        
+        select, input[type="range"] {
+            width: 100%;
+            background: rgba(40, 45, 65, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        select {
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+        
+        select:hover, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.1);
+        }
+        
+        select:focus {
+            outline: none;
+        }
+        
+        input[type="range"] {
+            height: 8px;
+            appearance:inherit;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, var(--primary) 25%, var(--border) 50%, var(--border) 100%);
+            outline: none;
+            padding: 0;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: white;
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(110, 168, 254, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: rgba(40, 45, 65, 0.5);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .checkbox-group:hover {
+            background: rgba(40, 45, 65, 0.8);
+        }
+        
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+        
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(58, 64, 96, 0.3);
+            transition: background 0.2s;
+        }
+        
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-row:hover {
+            background: rgba(110, 168, 254, 0.05);
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        
+        .stat-value {
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 14px;
+        }
+        
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 14, 39, 0.98);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+        
+        #loadingOverlay.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #loadingText {
+            margin-top: 24px;
+            font-size: 16px;
+            color: var(--text-secondary);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 25, 45, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+            max-width: 320px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            animation: slideInLeft 0.5s ease-out;
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        #instructions h3 {
+            font-size: 13px;
+            color: var(--primary);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        #instructions ul {
+            list-style: none;
+            line-height: 1.8;
+        }
+        
+        #instructions li::before {
+            content: '→';
+            color: var(--primary);
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        
+        #mobileToggle {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 200;
+            box-shadow: 0 4px 20px rgba(110, 168, 254, 0.5);
+            transition: transform 0.3s;
+        }
+        
+        #mobileToggle:active {
+            transform: scale(0.95);
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            #controlPanel {
+                position: fixed;
+                right: 0;
+                top: 0;
+                height: 100vh;
+                width: 90%;
+                max-width: 320px;
+                transform: translateX(100%);
+                box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+            }
+            
+            #controlPanel.open {
+                transform: translateX(0);
+            }
+            
+            #mobileToggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            #instructions {
+                display: none;
+            }
+            
+            .panel-header h1 {
+                font-size: 18px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .section {
+                padding: 14px;
+            }
+            
+            .panel-content {
+                padding: 16px;
+            }
+        }
+        
+        /* High DPI Displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            #glCanvas {
+                image-rendering: crisp-edges;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="canvasContainer">
+            <canvas id="glCanvas"></canvas>
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div id="loadingText">Loading WebAssembly Module...</div>
+            </div>
+            <div id="instructions">
+                <h3>Controls</h3>
+                <ul>
+                    <li><strong>Drag:</strong> Rotate camera</li>
+                    <li><strong>Pinch/Scroll:</strong> Zoom</li>
+                    <li><strong>Tap:</strong> Compute geodesic</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div id="controlPanel">
+            <div class="panel-header">
+                <h1>Geodesic Flow Visualizer</h1>
+                <p class="subtitle">Real-Time Differential Geometry</p>
+            </div>
+            
+            <div class="panel-content">
+                <div class="section">
+                    <h2>Surface Selection</h2>
+                    <div class="control-group">
+                        <label for="surfaceType">Surface Type</label>
+                        <select id="surfaceType">
+                            <option value="torus">Torus</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="hyperbolic_paraboloid">Hyperbolic Paraboloid</option>
+                            <option value="monkey_saddle">Monkey Saddle</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>Geodesic Parameters</h2>
+                    <div class="control-group">
+                        <label>
+                            <span>Integration Steps</span>
+                            <span class="value-display" id="stepsValue">1000</span>
+                        </label>
+                        <input type="range" id="integrationSteps" min="100" max="3000" value="1000" step="100">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Step Size</span>
+                            <span class="value-display" id="stepSizeValue">0.01</span>
+                        </label>
+                        <input type="range" id="stepSize" min="0.001" max="0.1" value="0.01" step="0.001">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Integration Time</span>
+                            <span class="value-display" id="timeValue">10.0</span>
+                        </label>
+                        <input type="range" id="totalTime" min="1" max="50" value="10" step="1">
+                    </div>
+                    <button id="clearGeodesics">Clear All Geodesics</button>
+                </div>
+                
+                <div class="section">
+                    <h2>Visualization</h2>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showCurvature" checked>
+                        <label for="showCurvature">Show Curvature Coloring</label>
+                    </div>
+                    <div class="control-group" style="margin-top: 16px;">
+                        <label>
+                            <span>Mesh Resolution</span>
+                            <span class="value-display" id="resolutionValue">100</span>
+                        </label>
+                        <input type="range" id="meshResolution" min="30" max="150" value="100" step="10">
+                    </div>
+                    <button id="regenerateMesh">Regenerate Mesh</button>
+                </div>
+                
+                <div class="section">
+                    <h2>Statistics</h2>
+                    <div class="stat-row">
+                        <span class="stat-label">FPS:</span>
+                        <span class="stat-value" id="fps">60</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Vertices:</span>
+                        <span class="stat-value" id="vertexCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Triangles:</span>
+                        <span class="stat-value" id="triangleCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Mesh Gen:</span>
+                        <span class="stat-value" id="meshTime">0ms</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Geodesic:</span>
+                        <span class="stat-value" id="geodesicTime">0ms</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">K (Gaussian):</span>
+                        <span class="stat-value" id="gaussianCurv">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">H (Mean):</span>
+                        <span class="stat-value" id="meanCurv">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button id="mobileToggle" aria-label="Toggle controls">☰</button>
+    </div>
+
+    <script src="../build/geodesic.js"></script>
+    <script>
+        // Production-grade WebGL Geodesic Visualizer
+        'use strict';
+
+        // Application state
+        const App = {
+            gl: null,
+            canvas: null,
+            module: null,
+            meshData: null,
+            geodesicPaths: [],
+            surfaceProgram: null,
+            geodesicProgram: null,
+            vertexBuffer: null,
+            indexBuffer: null,
+            geodesicBuffer: null,
+            vertexCount: 0,
+            indexCount: 0,
+            supportsUint32Indices: false,
+            isRendering: false,
+            camera: {
+                position: [0, 0, 8],
+                target: [0, 0, 0],
+                up: [0, 1, 0],
+                rotation: [0, Math.PI / 3],
+                distance: 8,
+                fov: 45 * Math.PI / 180
+            },
+            interaction: {
+                mouseDown: false,
+                lastX: 0,
+                lastY: 0,
+                button: 0,
+                touches: []
+            },
+            performance: {
+                lastFrameTime: 0,
+                frameCount: 0,
+                fps: 60
+            }
+        };
+
+        // Shaders
+        const Shaders = {
+            vertex: `
+                attribute vec3 aPosition;
+                attribute vec3 aNormal;
+                attribute float aCurvature;
+                uniform mat4 uModelViewMatrix;
+                uniform mat4 uProjectionMatrix;
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                varying float vCurvature;
+                void main() {
+                    vec4 pos = uModelViewMatrix * vec4(aPosition, 1.0);
+                    vPosition = pos.xyz;
+                    vNormal = mat3(uModelViewMatrix) * aNormal;
+                    vCurvature = aCurvature;
+                    gl_Position = uProjectionMatrix * pos;
+                }
+            `,
+            fragment: `
+                precision mediump float;
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                varying float vCurvature;
+                uniform bool uShowCurvature;
+                uniform vec3 uLightDir;
+                vec3 curvatureColor(float k) {
+                    k = clamp(k, -2.0, 2.0) / 2.0;
+                    if (k < 0.0) {
+                        return mix(vec3(0.1, 0.3, 0.9), vec3(0.2, 0.8, 0.9), -k);
+                    } else {
+                        return mix(vec3(0.2, 0.9, 0.4), vec3(0.95, 0.35, 0.35), k);
+                    }
+                }
+                void main() {
+                    vec3 normal = normalize(vNormal);
+                    vec3 lightDir = normalize(uLightDir);
+                    float diffuse = max(dot(normal, lightDir), 0.0) * 0.7 + 0.3;
+                    vec3 baseColor = uShowCurvature ? curvatureColor(vCurvature) : vec3(0.6, 0.7, 0.8);
+                    gl_FragColor = vec4(baseColor * diffuse, 1.0);
+                }
+            `,
+            geodesicVertex: `
+                attribute vec3 aPosition;
+                uniform mat4 uModelViewMatrix;
+                uniform mat4 uProjectionMatrix;
+                void main() {
+                    gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0);
+                }
+            `,
+            geodesicFragment: `
+                precision mediump float;
+                void main() {
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+                }
+            `
+        };
+
+        // Matrix utilities
+        const Mat4 = {
+            identity: () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+            
+            perspective: (fov, aspect, near, far) => {
+                const f = 1.0 / Math.tan(fov / 2);
+                const rangeInv = 1.0 / (near - far);
+                return new Float32Array([
+                    f/aspect, 0, 0, 0,
+                    0, f, 0, 0,
+                    0, 0, (near+far)*rangeInv, -1,
+                    0, 0, near*far*rangeInv*2, 0
+                ]);
+            },
+            
+            lookAt: (eye, target, up) => {
+                const z = Vec3.normalize([eye[0]-target[0], eye[1]-target[1], eye[2]-target[2]]);
+                const x = Vec3.normalize(Vec3.cross(up, z));
+                const y = Vec3.cross(z, x);
+                return new Float32Array([
+                    x[0], y[0], z[0], 0,
+                    x[1], y[1], z[1], 0,
+                    x[2], y[2], z[2], 0,
+                    -Vec3.dot(x,eye), -Vec3.dot(y,eye), -Vec3.dot(z,eye), 1
+                ]);
+            }
+        };
+
+        const Vec3 = {
+            normalize: (v) => {
+                const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+                return len > 0 ? [v[0]/len, v[1]/len, v[2]/len] : [0,0,0];
+            },
+            cross: (a, b) => [
+                a[1]*b[2]-a[2]*b[1],
+                a[2]*b[0]-a[0]*b[2],
+                a[0]*b[1]-a[1]*b[0]
+            ],
+            dot: (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+        };
+
+        // WebGL initialization
+        function initWebGL() {
+            console.log('[WebGL] Initializing...');
+            App.canvas = document.getElementById('glCanvas');
+            App.gl = App.canvas.getContext('webgl', {
+                alpha: false,
+                antialias: true,
+                depth: true,
+                preserveDrawingBuffer: false
+            }) || App.canvas.getContext('experimental-webgl');
+            
+            if (!App.gl) {
+                console.error('[WebGL] Not supported');
+                return false;
+            }
+            
+            const ext = App.gl.getExtension('OES_element_index_uint');
+            App.supportsUint32Indices = !!ext;
+            console.log(`[WebGL] 32-bit indices: ${App.supportsUint32Indices ? 'YES' : 'NO'}`);
+            
+            resizeCanvas();
+            
+            App.gl.enable(App.gl.DEPTH_TEST);
+            App.gl.depthFunc(App.gl.LEQUAL);
+            App.gl.clearColor(0.1, 0.1, 0.15, 1.0);
+            
+            App.surfaceProgram = createProgram(Shaders.vertex, Shaders.fragment);
+            App.geodesicProgram = createProgram(Shaders.geodesicVertex, Shaders.geodesicFragment);
+            
+            if (!App.surfaceProgram || !App.geodesicProgram) {
+                console.error('[WebGL] Shader compilation failed');
+                return false;
+            }
+            
+            App.vertexBuffer = App.gl.createBuffer();
+            App.indexBuffer = App.gl.createBuffer();
+            App.geodesicBuffer = App.gl.createBuffer();
+            
+            console.log('[WebGL] Initialized successfully');
+            return true;
+        }
+
+        function createProgram(vsSource, fsSource) {
+            const vs = compileShader(App.gl.VERTEX_SHADER, vsSource);
+            const fs = compileShader(App.gl.FRAGMENT_SHADER, fsSource);
+            if (!vs || !fs) return null;
+            
+            const program = App.gl.createProgram();
+            App.gl.attachShader(program, vs);
+            App.gl.attachShader(program, fs);
+            App.gl.linkProgram(program);
+            
+            if (!App.gl.getProgramParameter(program, App.gl.LINK_STATUS)) {
+                console.error('[Shader] Link error:', App.gl.getProgramInfoLog(program));
+                return null;
+            }
+            return program;
+        }
+
+        function compileShader(type, source) {
+            const shader = App.gl.createShader(type);
+            App.gl.shaderSource(shader, source);
+            App.gl.compileShader(shader);
+            
+            if (!App.gl.getShaderParameter(shader, App.gl.COMPILE_STATUS)) {
+                console.error('[Shader] Compile error:', App.gl.getShaderInfoLog(shader));
+                return null;
+            }
+            return shader;
+        }
+
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const displayWidth = Math.floor(App.canvas.clientWidth * dpr);
+            const displayHeight = Math.floor(App.canvas.clientHeight * dpr);
+            
+            if (App.canvas.width !== displayWidth || App.canvas.height !== displayHeight) {
+                App.canvas.width = displayWidth;
+                App.canvas.height = displayHeight;
+                if (App.gl) {
+                    App.gl.viewport(0, 0, displayWidth, displayHeight);
+                }
+            }
+        }
+
+        function updateCamera() {
+            const theta = App.camera.rotation[0];
+            const phi = App.camera.rotation[1];
+            App.camera.position = [
+                App.camera.distance * Math.sin(phi) * Math.cos(theta),
+                App.camera.distance * Math.cos(phi),
+                App.camera.distance * Math.sin(phi) * Math.sin(theta)
+            ];
+        }
+
+        function generateMesh() {
+            if (!App.module) return;
+            
+            try {
+                App.meshData = App.module.generateMesh();
+                if (!App.meshData || !App.meshData.vertices) {
+                    console.error('[Mesh] Generation failed');
+                    return;
+                }
+                
+                App.gl.bindBuffer(App.gl.ARRAY_BUFFER, App.vertexBuffer);
+                App.gl.bufferData(App.gl.ARRAY_BUFFER, App.meshData.vertices, App.gl.STATIC_DRAW);
+                
+                let indexData = App.meshData.indices;
+                if (!App.supportsUint32Indices && indexData instanceof Uint32Array) {
+                    indexData = new Uint16Array(indexData);
+                }
+                
+                App.gl.bindBuffer(App.gl.ELEMENT_ARRAY_BUFFER, App.indexBuffer);
+                App.gl.bufferData(App.gl.ELEMENT_ARRAY_BUFFER, indexData, App.gl.STATIC_DRAW);
+                
+                App.vertexCount = App.meshData.vertexCount;
+                App.indexCount = indexData.length;
+                
+                console.log(`[Mesh] Generated: ${App.vertexCount} vertices, ${App.indexCount/3} triangles`);
+                updateStats();
+            } catch (err) {
+                console.error('[Mesh] Error:', err);
+            }
+        }
+
+        function computeGeodesic(u, v, du, dv) {
+            if (!App.module) return;
+            
+            const steps = parseInt(document.getElementById('integrationSteps').value);
+            const stepSize = parseFloat(document.getElementById('stepSize').value);
+            const time = parseFloat(document.getElementById('totalTime').value);
+            
+            const path = App.module.computeGeodesic(u, v, du, dv, time, stepSize, steps);
+            
+            if (path && path.length > 0) {
+                App.geodesicPaths.push(path);
+                updateGeodesicBuffers();
+                updateStats();
+            }
+        }
+
+        function updateGeodesicBuffers() {
+            const vertices = [];
+            for (const path of App.geodesicPaths) {
+                for (const point of path) {
+                    vertices.push(point.x, point.y, point.z);
+                }
+            }
+            
+            if (vertices.length > 0) {
+                App.gl.bindBuffer(App.gl.ARRAY_BUFFER, App.geodesicBuffer);
+                App.gl.bufferData(App.gl.ARRAY_BUFFER, new Float32Array(vertices), App.gl.STATIC_DRAW);
+            }
+        }
+
+        function render(time) {
+            if (!App.isRendering) return;
+            
+            resizeCanvas();
+            App.gl.clear(App.gl.COLOR_BUFFER_BIT | App.gl.DEPTH_BUFFER_BIT);
+            
+            const aspect = App.canvas.width / App.canvas.height;
+            const projMatrix = Mat4.perspective(App.camera.fov, aspect, 0.1, 100.0);
+            const viewMatrix = Mat4.lookAt(App.camera.position, App.camera.target, App.camera.up);
+            
+            // Render surface
+            if (App.meshData && App.indexCount > 0) {
+                App.gl.useProgram(App.surfaceProgram);
+                
+                const projLoc = App.gl.getUniformLocation(App.surfaceProgram, 'uProjectionMatrix');
+                const viewLoc = App.gl.getUniformLocation(App.surfaceProgram, 'uModelViewMatrix');
+                const curvLoc = App.gl.getUniformLocation(App.surfaceProgram, 'uShowCurvature');
+                const lightLoc = App.gl.getUniformLocation(App.surfaceProgram, 'uLightDir');
+                
+                App.gl.uniformMatrix4fv(projLoc, false, projMatrix);
+                App.gl.uniformMatrix4fv(viewLoc, false, viewMatrix);
+                App.gl.uniform1i(curvLoc, document.getElementById('showCurvature').checked ? 1 : 0);
+                App.gl.uniform3f(lightLoc, 1, 1, 1);
+                
+                App.gl.bindBuffer(App.gl.ARRAY_BUFFER, App.vertexBuffer);
+                
+                const posLoc = App.gl.getAttribLocation(App.surfaceProgram, 'aPosition');
+                App.gl.enableVertexAttribArray(posLoc);
+                App.gl.vertexAttribPointer(posLoc, 3, App.gl.FLOAT, false, 28, 0);
+                
+                const normLoc = App.gl.getAttribLocation(App.surfaceProgram, 'aNormal');
+                App.gl.enableVertexAttribArray(normLoc);
+                App.gl.vertexAttribPointer(normLoc, 3, App.gl.FLOAT, false, 28, 12);
+                
+                const curvAttrLoc = App.gl.getAttribLocation(App.surfaceProgram, 'aCurvature');
+                App.gl.enableVertexAttribArray(curvAttrLoc);
+                App.gl.vertexAttribPointer(curvAttrLoc, 1, App.gl.FLOAT, false, 28, 24);
+                
+                App.gl.bindBuffer(App.gl.ELEMENT_ARRAY_BUFFER, App.indexBuffer);
+                const indexType = App.supportsUint32Indices ? App.gl.UNSIGNED_INT : App.gl.UNSIGNED_SHORT;
+                App.gl.drawElements(App.gl.TRIANGLES, App.indexCount, indexType, 0);
+            }
+            
+            // Render geodesics
+            if (App.geodesicPaths.length > 0) {
+                App.gl.useProgram(App.geodesicProgram);
+                
+                const projLoc = App.gl.getUniformLocation(App.geodesicProgram, 'uProjectionMatrix');
+                const viewLoc = App.gl.getUniformLocation(App.geodesicProgram, 'uModelViewMatrix');
+                
+                App.gl.uniformMatrix4fv(projLoc, false, projMatrix);
+                App.gl.uniformMatrix4fv(viewLoc, false, viewMatrix);
+                
+                App.gl.bindBuffer(App.gl.ARRAY_BUFFER, App.geodesicBuffer);
+                
+                const posLoc = App.gl.getAttribLocation(App.geodesicProgram, 'aPosition');
+                App.gl.enableVertexAttribArray(posLoc);
+                App.gl.vertexAttribPointer(posLoc, 3, App.gl.FLOAT, false, 0, 0);
+                
+                App.gl.lineWidth(2);
+                
+                let offset = 0;
+                for (const path of App.geodesicPaths) {
+                    App.gl.drawArrays(App.gl.LINE_STRIP, offset, path.length);
+                    offset += path.length;
+                }
+            }
+            
+            // Update FPS
+            App.performance.frameCount++;
+            if (time - App.performance.lastFrameTime >= 1000) {
+                App.performance.fps = App.performance.frameCount;
+                App.performance.frameCount = 0;
+                App.performance.lastFrameTime = time;
+                document.getElementById('fps').textContent = App.performance.fps;
+                if (App.module) App.module.updateFrameRate(App.performance.fps);
+            }
+            
+            requestAnimationFrame(render);
+        }
+
+        function updateStats() {
+            if (!App.module) return;
+            const metrics = App.module.getPerformanceMetrics();
+            document.getElementById('vertexCount').textContent = metrics.vertexCount;
+            document.getElementById('triangleCount').textContent = metrics.triangleCount;
+            document.getElementById('meshTime').textContent = metrics.meshGenerationTime.toFixed(1) + 'ms';
+            document.getElementById('geodesicTime').textContent = metrics.geodesicComputationTime.toFixed(1) + 'ms';
+        }
+
+        // Event handlers
+        function setupEventHandlers() {
+            const canvas = App.canvas;
+            
+            // Mouse events
+            canvas.addEventListener('mousedown', (e) => {
+                App.interaction.mouseDown = true;
+                App.interaction.button = e.button;
+                App.interaction.lastX = e.clientX;
+                App.interaction.lastY = e.clientY;
+                e.preventDefault();
+            });
+            
+            window.addEventListener('mouseup', (e) => {
+                if (App.interaction.mouseDown && App.interaction.button === 0) {
+                    const dx = Math.abs(e.clientX - App.interaction.lastX);
+                    const dy = Math.abs(e.clientY - App.interaction.lastY);
+                    if (dx < 5 && dy < 5 && App.module) {
+                        const bounds = App.module.getSurfaceBounds();
+                        const u = (bounds.uMin + bounds.uMax) / 2 + (Math.random() - 0.5) * 0.5;
+                        const v = (bounds.vMin + bounds.vMax) / 2 + (Math.random() - 0.5) * 0.5;
+                        computeGeodesic(u, v, Math.random() - 0.5, Math.random() - 0.5);
+                    }
+                }
+                App.interaction.mouseDown = false;
+            });
+            
+            window.addEventListener('mousemove', (e) => {
+                if (!App.interaction.mouseDown) return;
+                
+                const dx = e.clientX - App.interaction.lastX;
+                const dy = e.clientY - App.interaction.lastY;
+                
+                if (App.interaction.button === 0) {
+                    App.camera.rotation[0] += dx * 0.01;
+                    App.camera.rotation[1] = Math.max(0.1, Math.min(Math.PI - 0.1, App.camera.rotation[1] - dy * 0.01));
+                    updateCamera();
+                } else if (App.interaction.button === 2) {
+                    App.camera.target[0] += dx * 0.01;
+                    App.camera.target[1] -= dy * 0.01;
+                }
+                
+                App.interaction.lastX = e.clientX;
+                App.interaction.lastY = e.clientY;
+                e.preventDefault();
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                App.camera.distance *= (1 + e.deltaY * 0.001);
+                App.camera.distance = Math.max(2, Math.min(20, App.camera.distance));
+                updateCamera();
+                e.preventDefault();
+            }, { passive: false });
+            
+            // Touch events for mobile
+            canvas.addEventListener('touchstart', (e) => {
+                App.interaction.touches = Array.from(e.touches);
+                if (e.touches.length === 1) {
+                    App.interaction.lastX = e.touches[0].clientX;
+                    App.interaction.lastY = e.touches[0].clientY;
+                }
+                e.preventDefault();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1) {
+                    const dx = e.touches[0].clientX - App.interaction.lastX;
+                    const dy = e.touches[0].clientY - App.interaction.lastY;
+                    App.camera.rotation[0] += dx * 0.01;
+                    App.camera.rotation[1] = Math.max(0.1, Math.min(Math.PI - 0.1, App.camera.rotation[1] - dy * 0.01));
+                    updateCamera();
+                    App.interaction.lastX = e.touches[0].clientX;
+                    App.interaction.lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    const oldTouches = App.interaction.touches;
+                    if (oldTouches.length === 2) {
+                        const oldDist = Math.hypot(
+                            oldTouches[0].clientX - oldTouches[1].clientX,
+                            oldTouches[0].clientY - oldTouches[1].clientY
+                        );
+                        const newDist = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                        App.camera.distance *= oldDist / newDist;
+                        App.camera.distance = Math.max(2, Math.min(20, App.camera.distance));
+                        updateCamera();
+                    }
+                }
+                App.interaction.touches = Array.from(e.touches);
+                e.preventDefault();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchend', (e) => {
+                if (e.touches.length === 0 && App.interaction.touches.length === 1 && App.module) {
+                    const bounds = App.module.getSurfaceBounds();
+                    const u = (bounds.uMin + bounds.uMax) / 2 + (Math.random() - 0.5) * 0.5;
+                    const v = (bounds.vMin + bounds.vMax) / 2 + (Math.random() - 0.5) * 0.5;
+                    computeGeodesic(u, v, Math.random() - 0.5, Math.random() - 0.5);
+                }
+                App.interaction.touches = Array.from(e.touches);
+            });
+            
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            // UI controls
+            document.getElementById('surfaceType')?.addEventListener('change', (e) => {
+                if (App.module) {
+                    App.module.setSurface(e.target.value);
+                    App.geodesicPaths = [];
+                    generateMesh();
+                }
+            });
+            
+            const setupSlider = (id, valueId, formatter) => {
+                const slider = document.getElementById(id);
+                const display = document.getElementById(valueId);
+                slider?.addEventListener('input', (e) => {
+                    if (display) display.textContent = formatter(e.target.value);
+                });
+            };
+            
+            setupSlider('integrationSteps', 'stepsValue', v => v);
+            setupSlider('stepSize', 'stepSizeValue', v => parseFloat(v).toFixed(3));
+            setupSlider('totalTime', 'timeValue', v => parseFloat(v).toFixed(1));
+            setupSlider('meshResolution', 'resolutionValue', v => v);
+            
+            document.getElementById('clearGeodesics')?.addEventListener('click', () => {
+                App.geodesicPaths = [];
+                updateGeodesicBuffers();
+            });
+            
+            document.getElementById('regenerateMesh')?.addEventListener('click', () => {
+                if (App.module) {
+                    const res = parseInt(document.getElementById('meshResolution').value);
+                    App.module.setMeshResolution(res, res);
+                    generateMesh();
+                }
+            });
+            
+            // Mobile menu toggle
+            document.getElementById('mobileToggle')?.addEventListener('click', () => {
+                document.getElementById('controlPanel').classList.toggle('open');
+            });
+            
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('[App] Starting initialization...');
+            
+            if (typeof createGeodesicModule === 'undefined') {
+                console.error('[App] geodesic.js not loaded');
+                document.getElementById('loadingText').textContent = 'Error: geodesic.js not loaded';
+                return;
+            }
+            
+            createGeodesicModule().then((mod) => {
+                console.log('[WASM] Module loaded');
+                App.module = mod;
+                
+                if (!initWebGL()) {
+                    document.getElementById('loadingText').textContent = 'WebGL initialization failed';
+                    return;
+                }
+                
+                App.module.initialize('torus');
+                console.log('[App] Module initialized');
+                
+                updateCamera();
+                generateMesh();
+                
+                setupEventHandlers();
+                
+                // Start render loop
+                App.isRendering = true;
+                requestAnimationFrame(render);
+                
+                // Hide loading overlay with animation
+                setTimeout(() => {
+                    const overlay = document.getElementById('loadingOverlay');
+                    overlay.classList.add('fade-out');
+                    console.log('[App] Ready!');
+                }, 500);
+                
+            }).catch((err) => {
+                console.error('[WASM] Load failed:', err);
+                document.getElementById('loadingText').textContent = 'Failed: ' + err.message;
+            });
+        });
+    </script>
+</body>
+</html>
